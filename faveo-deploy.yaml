@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: faveo-svc
+  namespace: faveo
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+  selector:
+    app: faveo-pods
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: faveo-deploy
+  namespace: faveo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: faveo-pods
+  template:
+    metadata:
+      labels:
+        app: faveo-pods
+    spec:  
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: faveo-web-app
+          image: tamilselvanlws/pia:apache-test-1 
+          ports:
+            - containerPort: 8080
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: true
+            runAsNonRoot: true
+            capabilities:
+              add:
+                - "CHOWN"
+                - "SETGID"
+                - "SETUID"
+          resources:
+            limits:
+              memory: 700Mi
+              cpu: 1
+            requests:
+              memory: 600Mi
+              cpu: 800m
+          livenessProbe:
+            httpGet:
+              path: /probe.php
+              port: 8080
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            periodSeconds: 10
+            failureThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /probe.php
+              port: 8080
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            periodSeconds: 10
+            failureThreshold: 1
+          volumeMounts:
+            - name: volume-data
+              mountPath: /var/www/html
+            - name: cm
+              mountPath: /var/www/html/.env
+              subPath: .env
+      initContainers:
+        - name: fetch
+          image: tamilselvanlws/pia:fetcher-dev
+          command: ['sh','-c','apt update; apt install git -y; curl https://billing.faveohelpdesk.com/download/faveo\?order_number\=35809939\&serial_key\=F6LCG5CNGARX0000 --output faveo.zip; unzip faveo.zip -d html; chown -R faveo:faveo /html']
+          volumeMounts:
+            - name: volume-data
+              mountPath: /html
+      volumes:
+        - name: volume-data
+          emptyDir: {}
+        - name: cm
+          configMap:
+            name: faveo-env

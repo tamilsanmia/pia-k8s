@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supervior-deploy
+  namespace: faveo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supervisor-pods
+  template:
+    metadata:
+      labels:
+        app: supervisor-pods
+    spec:
+      containers:
+      - name: faveo-supervisor
+        image: tamilselvanlws/pia:supervisor-test-3
+        resources:
+           limits:
+             cpu: '2'
+             memory: 4096Mi
+           requests:
+             cpu: '1'
+             memory: 2Gi
+        volumeMounts:
+        - name: volume-data
+          mountPath: /var/www/html
+        - name: cm
+          mountPath: /var/www/html/.env
+          subPath: .env
+      initContainers:
+      - name: fetch
+        image: tamilselvanlws/pia:fetcher-dev
+        command: ['sh','-c','apt update;apt install git -y; curl https://billing.faveohelpdesk.com/download/faveo\?order_number\=35809939\&serial_key\=F6LCG5CNGARX0000 --output faveo.zip; unzip faveo.zip -d html;chown -R www-data:www-data /html']
+        volumeMounts:
+        - name: volume-data
+          mountPath: /html
+      volumes:
+      - name: volume-data
+        emptyDir: {}
+      - name: cm
+        configMap:
+          name: faveo-env
